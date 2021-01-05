@@ -4,6 +4,8 @@ import me.bed0.jWynn.WynncraftAPI;
 
 public class WynncraftAPIConfig {
 
+    private static final String DEFAULT_USER_AGENT = "jWynn-Reactive/v";
+
     private String baseURL;
     private String baseURLLegacy;
     private boolean handleRatelimits;
@@ -12,11 +14,11 @@ public class WynncraftAPIConfig {
     private String apiKey;
 
     public WynncraftAPIConfig() {
-        this("https://api.wynncraft.com/", true, "jWynn/v" + WynncraftAPI.VERSION, 10000);
+        this("https://api.wynncraft.com/", true, DEFAULT_USER_AGENT + WynncraftAPI.VERSION, 10000);
     }
 
     public WynncraftAPIConfig(String apiKey) {
-        this("https://api.wynncraft.com/", true, "jWynn/v" + WynncraftAPI.VERSION, 10000, apiKey);
+        this("https://api.wynncraft.com/", true, DEFAULT_USER_AGENT + WynncraftAPI.VERSION, 10000, apiKey);
     }
 
     public WynncraftAPIConfig(String baseURL, boolean handleRatelimits, String defaultUserAgent, int defaultConnectionTimeout) {
