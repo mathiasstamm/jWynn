@@ -5,6 +5,7 @@ import me.bed0.jWynn.api.common.WynncraftIdentification;
 import me.bed0.jWynn.api.common.WynncraftProfession;
 import me.bed0.jWynn.api.v2.endpoints.*;
 import me.bed0.jWynn.exceptions.APIRequestException;
+import me.bed0.jWynn.util.UrlUtil;
 
 import javax.annotation.CheckReturnValue;
 import java.io.UnsupportedEncodingException;
@@ -41,7 +42,7 @@ public class APIV2IngredientSearch {
     @CheckReturnValue
     public APIV2IngredientRequest name(String name) {
         try {
-            return new APIV2IngredientRequest(api.getConfig().getBaseURL() + "v2/ingredient/search/name/" + URLEncoder.encode(name, "UTF-8"), api);
+            return new APIV2IngredientRequest(api.getConfig().getBaseURL() + "v2/ingredient/search/name/" + UrlUtil.encode(name, "UTF-8"), api);
         } catch (UnsupportedEncodingException ex) {
             throw new APIRequestException(ex);
         }
