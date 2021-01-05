@@ -9,6 +9,7 @@ import me.bed0.jWynn.api.v1.APIResponseV1;
 import me.bed0.jWynn.api.v1.APIResponseV1Request;
 import me.bed0.jWynn.api.v1.network.WynncraftOnlinePlayers;
 import me.bed0.jWynn.api.v1.network.WynncraftServerOnlinePlayers;
+import reactor.core.publisher.Mono;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -22,8 +23,8 @@ public class APIV1OnlinePlayers extends APIRequest<WynncraftOnlinePlayers> {
     }
 
     @Override
-    public APIResponse<WynncraftOnlinePlayers> runIncludeMeta() {
-        return GSON.fromJson(getResponse(), new TypeToken<APIResponseV1<WynncraftOnlinePlayers>>() {}.getType());
+    public Mono<APIResponse<WynncraftOnlinePlayers>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s, new TypeToken<APIResponseV1<WynncraftOnlinePlayers>>() {}.getType()));
     }
 
     public static class APIV1OnlinePlayersDeserializer implements JsonDeserializer<APIResponseV1<WynncraftOnlinePlayers>> {

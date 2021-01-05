@@ -11,6 +11,7 @@ import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v1.APIResponseV1;
 import me.bed0.jWynn.api.v1.APIResponseV1Request;
 import me.bed0.jWynn.api.v1.search.StatsSearchResult;
+import reactor.core.publisher.Mono;
 
 import java.lang.reflect.Type;
 
@@ -23,8 +24,8 @@ public class APIV1StatsSearch extends APIRequest<StatsSearchResult> {
     }
 
     @Override
-    public APIResponse<StatsSearchResult> runIncludeMeta() {
-        return GSON.fromJson(getResponse(), new TypeToken<APIResponseV1<StatsSearchResult>>() {}.getType());
+    public Mono<APIResponse<StatsSearchResult>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s, new TypeToken<APIResponseV1<StatsSearchResult>>() {}.getType()));
     }
 
     public static class APIV1StatsSearchResponseDeserializer implements JsonDeserializer<APIResponseV1<StatsSearchResult>> {

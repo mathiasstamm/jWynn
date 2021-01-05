@@ -11,6 +11,7 @@ import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v1.APIResponseV1;
 import me.bed0.jWynn.api.v1.APIResponseV1Request;
 import me.bed0.jWynn.api.v1.map.WynncraftMapLocation;
+import reactor.core.publisher.Mono;
 
 import java.lang.reflect.Type;
 
@@ -23,8 +24,8 @@ public class APIV1MapLocations extends APIRequest<WynncraftMapLocation[]> {
     }
 
     @Override
-    public APIResponse<WynncraftMapLocation[]> runIncludeMeta() {
-        return GSON.fromJson(getResponse(), new TypeToken<APIResponseV1<WynncraftMapLocation[]>>() {}.getType());
+    public Mono<APIResponse<WynncraftMapLocation[]>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s, new TypeToken<APIResponseV1<WynncraftMapLocation[]>>() {}.getType()));
     }
 
     public static class APIV1MapLocationsResponseDeserializer implements JsonDeserializer<APIResponseV1<WynncraftMapLocation[]>> {

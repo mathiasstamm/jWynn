@@ -1,41 +1,39 @@
 package me.bed0.jWynn.api;
 
+import io.netty.handler.codec.http.HttpHeaders;
 import me.bed0.jWynn.exceptions.*;
-import org.apache.commons.io.FileUtils;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.ResponseHandler;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
+import me.bed0.jWynn.util.ReactiveFileUtils;
+import reactor.core.publisher.Mono;
+import reactor.netty.ByteBufMono;
+import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.client.HttpClientResponse;
 
 import javax.annotation.CheckReturnValue;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.function.Consumer;
 
 public abstract class APIRequest<T> {
 
     protected String requestURL;
-    private List<Header> requestHeaders;
+    private final Map<String, String> requestHeaders;
     private String userAgent;
     private int timeout;
     private boolean ignoreRateLimit;
     private File fallbackFile;
 
-    private APIMidpoint midpoint;
+    private final APIMidpoint midpoint;
 
     public APIRequest(String requestURL, APIMidpoint midpoint) {
-        this(requestURL, new ArrayList<>(), midpoint.getAPIConfig().getDefaultUserAgent(), midpoint.getAPIConfig().getDefaultConnectionTimeout(), midpoint, false, null);
+        this(requestURL, new HashMap<>(), midpoint.getAPIConfig().getDefaultUserAgent(), midpoint.getAPIConfig().getDefaultConnectionTimeout(), midpoint, false, null);
     }
 
-    public APIRequest(String requestURL, List<Header> requestHeaders, String userAgent, int timeout, APIMidpoint midpoint, boolean ignoreRateLimit, File fallbackFile) {
+    public APIRequest(String requestURL, Map<String, String> requestHeaders, String userAgent, int timeout, APIMidpoint midpoint, boolean ignoreRateLimit, File fallbackFile) {
         this.requestURL = requestURL;
         this.requestHeaders = requestHeaders;
         this.userAgent = userAgent;
@@ -48,39 +46,29 @@ public abstract class APIRequest<T> {
     /**
      * Run this request, getting the response data directly (therefore destroying meta data)
      */
-    public T run() {
-        return runIncludeMeta().getData();
+    public Mono<T> run() {
+        return runIncludeMeta().map(APIResponse::getData);
     }
 
     /**
      * Run this request, the data returned is wrapped inside a APIResponse object, that also
      * contains the request meta data
      */
-    public abstract APIResponse<T> runIncludeMeta();
+    public abstract Mono<APIResponse<T>> runIncludeMeta();
 
     /**
      * Run this request, getting the response data directly and passing it to the specified
      * consumer. If the request fails, the onFailure consumer will be used instead.
      */
-    public void runAsync(Consumer<T> onSuccess, Consumer<Exception> onFailure) {
-        new Thread(() -> {
-            try {
-                onSuccess.accept(run());
-            } catch (Exception ex) {
-                onFailure.accept(ex);
-            }
-        }).start();
+    public void runAsync(Consumer<T> onSuccess, Consumer<Throwable> onFailure) {
+        run().subscribe(onSuccess, onFailure);
     }
 
     /**
      * Overload for {@link #runAsync(Consumer, Consumer)} that silently ignores failures
      */
     public void runAsync(Consumer<T> onSuccess) {
-        new Thread(() -> {
-            try {
-                onSuccess.accept(run());
-            } catch (Exception ignored) {}
-        }).start();
+        runAsync(onSuccess, ignored -> {});
     }
 
     /**
@@ -88,33 +76,23 @@ public abstract class APIRequest<T> {
      * contains the request meta data. Pass to the onSuccess consumer if the request was successful,
      * otherwise the relevant exception will be passed to the onFailure consumer.
      */
-    public void runIncludeMetaAsync(Consumer<APIResponse<T>> onSuccess, Consumer<Exception> onFailure) {
-        new Thread(() -> {
-            try {
-                onSuccess.accept(runIncludeMeta());
-            } catch (Exception ex) {
-                onFailure.accept(ex);
-            }
-        }).start();
+    public void runIncludeMetaAsync(Consumer<APIResponse<T>> onSuccess, Consumer<Throwable> onFailure) {
+        runIncludeMeta().subscribe(onSuccess, onFailure);
     }
 
     /**
      * Overload for {@link #runIncludeMetaAsync(Consumer, Consumer)} that silently ignores failures
      */
     public void runIncludeMetaAsync(Consumer<APIResponse<T>> onSuccess) {
-        new Thread(() -> {
-            try {
-                onSuccess.accept(runIncludeMeta());
-            } catch (Exception ignored) {}
-        }).start();
+        runIncludeMetaAsync(onSuccess, ignore -> {});
     }
 
     /**
      * When this request is run, the specified HTTP header will be included with the request
      */
     @CheckReturnValue
-    public APIRequest<T> withHeader(Header header) {
-        this.requestHeaders.add(header);
+    public APIRequest<T> withHeader(String header, String value) {
+        this.requestHeaders.put(header, value);
         return this;
     }
 
@@ -167,86 +145,99 @@ public abstract class APIRequest<T> {
         return this;
     }
 
-    protected String getResponse() {
+    protected Mono<String> getResponse() {
         if (!ignoreRateLimit && midpoint.isRateLimited()) {
-            throw new APIRateLimitExceededException("Cannot execute request " + requestURL + ", rate limit would be exceeded", midpoint.getRateLimitReset(), false);
+            return Mono.error(new APIRateLimitExceededException("Cannot execute request " + requestURL + ", rate limit would be exceeded", midpoint.getRateLimitReset(), false));
         }
-        RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(timeout).setSocketTimeout(timeout).build();
-        try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()) {
-            HttpGet httpGet = new HttpGet(requestURL);
-            Header[] requestHeaders = new Header[this.requestHeaders.size()];
-            httpGet.setHeaders(this.requestHeaders.toArray(requestHeaders));
-            httpGet.setHeader("user-agent", userAgent);
-            if (midpoint.getAPIConfig().hasApiKey()) {
-                httpGet.setHeader("apikey", midpoint.getAPIConfig().getApiKey());
-            }
-            ResponseHandler<String> handler = httpResponse -> {
-                if (midpoint.getAPIConfig().isHandleRatelimits()) {
-                    try {
-                        // TODO: Multiple rate limit headers now being returned?
-                        long rateLimitReset = Long.parseLong(httpResponse.getFirstHeader("ratelimit-reset").getValue()) * 1000 + System.currentTimeMillis();
-                        int rateLimitMax = Integer.parseInt(httpResponse.getFirstHeader("ratelimit-limit").getValue());
-                        int rateLimitRemaining = Integer.parseInt(httpResponse.getFirstHeader("ratelimit-remaining").getValue());
-                        midpoint.updateRateLimit(rateLimitReset, rateLimitRemaining, rateLimitMax);
-                    } catch (NumberFormatException | NullPointerException ignored) {
-                        midpoint.decrementRateLimit();
-                    }
-                }
-                int status = httpResponse.getStatusLine().getStatusCode();
-                if (status == HttpStatus.SC_OK) {
-                    HttpEntity entity = httpResponse.getEntity();
-                    String returnStr = entity != null ? EntityUtils.toString(entity) : null;
-                    if (returnStr == null)
-                        throw new APIResponseException("No body in request response for " + requestURL, -1);
-                    if (returnStr.matches("\\{\"message\":\".*\"}")) {
-                        throw new APIResponseException("API error when requesting " + requestURL + ": " + returnStr.split("\"message\":")[1].replace("\"", "").replace("}", ""), -1);
-                    } else if (returnStr.matches("\\{\"error\":\".*\"}")) {
-                        throw new APIResponseException("API error when requesting " + requestURL + ": " + returnStr.split("\"error\":")[1].replace("\"", "").replace("}", ""), -1);
-                    }
-                    if (!entity.getContentType().getValue().contains("application/json"))
-                        throw new APIResponseException("Unexpected content type (not application/json): " + entity.getContentType().getValue(), -1);
-                    if (fallbackFile != null && !fallbackFile.isDirectory()) {
-                        fallbackFile.getParentFile().mkdirs();
-                        FileUtils.writeStringToFile(fallbackFile, returnStr, StandardCharsets.UTF_8);
-                    }
-                    return returnStr;
-                } else if (status == HttpStatus.SC_BAD_REQUEST) {
-                    throw new APIRequestException("400: Bad Request for " + requestURL);
-                } else if (status == 429 /* Too Many Requests */) {
-                    long resetTime;
-                    try {
-                        resetTime = Long.parseLong(httpResponse.getFirstHeader("ratelimit-reset").getValue()) * 1000 + System.currentTimeMillis();
-                    } catch (NumberFormatException ex) {
-                        resetTime = -1;
-                    }
-                    throw new APIRateLimitExceededException("429: Too Many Requests for " + requestURL, resetTime, true);
-                } else if (status == HttpStatus.SC_NOT_FOUND) {
-                    throw new APIResponseException("404: Not Found for " + requestURL, 404);
-                } else if (status == HttpStatus.SC_SERVICE_UNAVAILABLE) {
-                    throw new APIResponseException("503: Service Unavailable " + requestURL, 503);
-                } else {
-                    throw new APIResponseException("Unexpected status code " + status + " returned by API for request " + requestURL, status);
-                }
-            };
-            return client.execute(httpGet, handler);
-        } catch (IOException ex) {
-            if (fallbackFile == null) {
-                throw new APIConnectionException(ex);
-            }
-            try {
-                return FileUtils.readFileToString(fallbackFile, StandardCharsets.UTF_8);
-            } catch (IOException ex2) {
-                throw new APIConnectionException(ex);
-            }
-        } catch (APIException ex) {
-            if (fallbackFile == null) {
-                throw ex;
-            }
-            try {
-                return FileUtils.readFileToString(fallbackFile, StandardCharsets.UTF_8);
-            } catch (IOException ex2) {
-                throw ex;
-            }
+
+        return HttpClient.create()
+                .responseTimeout(Duration.of(timeout, ChronoUnit.MILLIS))
+                .headers(this::setHeaders)
+                .get().uri(requestURL)
+                .responseSingle(this::validateResponse)
+                // wrap IOExceptions in APIConnectionExceptions
+                .onErrorResume(IOException.class, e -> Mono.error(new APIConnectionException(e)))
+                .onErrorResume(this::handleErrors);
+    }
+
+    private void setHeaders(final HttpHeaders builder) {
+        requestHeaders.forEach(builder::set);
+
+        builder.set("user-agent", userAgent);
+
+        if (midpoint.getAPIConfig().hasApiKey()) {
+            builder.set("apikey", midpoint.getAPIConfig().getApiKey());
         }
     }
+
+    private Mono<String> validateResponse(final HttpClientResponse response, final ByteBufMono body) {
+        final HttpHeaders headers = response.responseHeaders();
+
+        if (midpoint.getAPIConfig().isHandleRatelimits()) {
+            updateRateLimit(headers);
+        }
+
+        int status = response.status().code();
+        switch (status) {
+            case 200: // ok
+                return body.asString()
+                        .filter(Objects::nonNull)
+                        .switchIfEmpty(Mono.error(new APIResponseException("No body in request response for " + requestURL, -1)))
+                        .filter(s -> Optional.ofNullable(headers.get("content-type")).map(s1 -> s1.contains("application/json")).orElse(false))
+                        .switchIfEmpty(Mono.error(new APIResponseException("Unexpected content type (not application/json): " + headers.get("content-type"), -1)))
+                        .flatMap(this::validateResponseBody);
+            case 429: // too many requests
+                long resetTime;
+                try {
+                    resetTime = Long.parseLong(headers.get("ratelimit-reset")) * 1000 + System.currentTimeMillis();
+                } catch (NumberFormatException ignore) {
+                    resetTime = -1;
+                }
+                return Mono.error(new APIRateLimitExceededException("429: Too Many Requests for " + requestURL, resetTime, true));
+            case 404: // not found
+                return Mono.error(new APIResponseException("404: Not Found for " + requestURL, 404));
+            case 503: // service unavailable
+                return Mono.error(new APIResponseException("503: Service Unavailable " + requestURL, 503));
+            default: // unknown
+                return Mono.error(new APIResponseException("Unexpected status code " + status + " returned by API for request " + requestURL, status));
+        }
+    }
+
+    private Mono<String> validateResponseBody(final String body) {
+        if (body.matches("\\{\"message\":\".*\"}")) {
+            return Mono.error(new APIResponseException("API error when requesting " + requestURL + ": " + body.split("\"message\":")[1].replace("\"", "").replace("}", ""), -1));
+        } else if (body.matches("\\{\"error\":\".*\"}")) {
+            return Mono.error(new APIResponseException("API error when requesting " + requestURL + ": " + body.split("\"error\":")[1].replace("\"", "").replace("}", ""), -1));
+        }
+
+        return Mono.justOrEmpty(fallbackFile)
+                .filter(file -> !file.isDirectory())
+                .flatMap(file -> {
+                    file.getParentFile().mkdirs();
+                    return ReactiveFileUtils.writeStringToFile(fallbackFile, body, StandardCharsets.UTF_8);
+                })
+                .thenReturn(body);
+    }
+
+    private void updateRateLimit(final HttpHeaders headers) {
+        try {
+            // TODO: Multiple rate limit headers now being returned?
+            final long reset = Long.parseLong(headers.get("ratelimit-reset")) * 1000 + System.currentTimeMillis();
+            final int limit = headers.getInt("ratelimit-limit");
+            final int remaining = headers.getInt("ratelimit-remaining");
+            midpoint.updateRateLimit(reset, limit, remaining);
+        } catch (NumberFormatException | NullPointerException ignored) {
+            midpoint.decrementRateLimit();
+        }
+    }
+
+    private Mono<String> handleErrors(final Throwable throwable) {
+        if (fallbackFile == null) {
+            return Mono.error(throwable);
+        }
+
+        return ReactiveFileUtils.readFileToString(fallbackFile, StandardCharsets.UTF_8)
+                .onErrorResume(__ -> Mono.error(throwable)); // Return the original throwable if file-write fails
+    }
+
 }

@@ -4,6 +4,7 @@ import me.bed0.jWynn.api.APIMidpoint;
 import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v2.recipe.WynncraftRecipe;
 import me.bed0.jWynn.exceptions.APIRequestException;
+import reactor.core.publisher.Mono;
 
 import javax.annotation.CheckReturnValue;
 
@@ -30,7 +31,7 @@ public class APIV2RecipeMinimumMaximumRequest extends APIV2RecipeRequest {
     }
 
     @Override
-    public APIResponse<WynncraftRecipe[]> runIncludeMeta() {
+    public Mono<APIResponse<WynncraftRecipe[]>> runIncludeMeta() {
         if (!updateMade)
             throw new APIRequestException("API V2 Recipe Search: No properties added to search");
         requestURL = requestURL.substring(0, requestURL.length() - 1);

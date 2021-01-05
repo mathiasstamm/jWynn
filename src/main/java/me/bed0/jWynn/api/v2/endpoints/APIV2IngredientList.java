@@ -5,6 +5,7 @@ import me.bed0.jWynn.api.APIMidpoint;
 import me.bed0.jWynn.api.APIRequest;
 import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v2.APIResponseV2;
+import reactor.core.publisher.Mono;
 
 import static me.bed0.jWynn.WynncraftAPI.GSON;
 
@@ -15,7 +16,7 @@ public class APIV2IngredientList extends APIRequest<String[]> {
     }
 
     @Override
-    public APIResponse<String[]> runIncludeMeta() {
-        return GSON.fromJson(getResponse(),  new TypeToken<APIResponseV2<String[]>>() {}.getType());
+    public Mono<APIResponse<String[]>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s,  new TypeToken<APIResponseV2<String[]>>() {}.getType()));
     }
 }

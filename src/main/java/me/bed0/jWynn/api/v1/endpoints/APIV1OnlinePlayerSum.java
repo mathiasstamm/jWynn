@@ -11,6 +11,7 @@ import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v1.APIResponseV1;
 import me.bed0.jWynn.api.v1.APIResponseV1Request;
 import me.bed0.jWynn.api.v1.network.WynncraftOnlinePlayerSum;
+import reactor.core.publisher.Mono;
 
 import java.lang.reflect.Type;
 
@@ -23,8 +24,8 @@ public class APIV1OnlinePlayerSum extends APIRequest<WynncraftOnlinePlayerSum> {
     }
 
     @Override
-    public APIResponse<WynncraftOnlinePlayerSum> runIncludeMeta() {
-        return GSON.fromJson(getResponse(), new TypeToken<APIResponseV1<WynncraftOnlinePlayerSum>>() {}.getType());
+    public Mono<APIResponse<WynncraftOnlinePlayerSum>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s, new TypeToken<APIResponseV1<WynncraftOnlinePlayerSum>>() {}.getType()));
     }
 
     public static class APIV1OnlinePlayerSumResponseDeserializer implements JsonDeserializer<APIResponseV1<WynncraftOnlinePlayerSum>> {

@@ -11,6 +11,7 @@ import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v1.APIResponseV1;
 import me.bed0.jWynn.api.v1.APIResponseV1Request;
 import me.bed0.jWynn.api.v1.item.WynncraftItem;
+import reactor.core.publisher.Mono;
 
 import java.lang.reflect.Type;
 
@@ -23,8 +24,8 @@ public class APIV1ItemDB extends APIRequest<WynncraftItem[]> {
     }
 
     @Override
-    public APIResponse<WynncraftItem[]> runIncludeMeta() {
-        return GSON.fromJson(getResponse(), new TypeToken<APIResponseV1<WynncraftItem[]>>() {}.getType());
+    public Mono<APIResponse<WynncraftItem[]>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s, new TypeToken<APIResponseV1<WynncraftItem[]>>() {}.getType()));
     }
 
     public static class APIV1ItemDBResponseDeserializer implements JsonDeserializer<APIResponseV1<WynncraftItem[]>> {

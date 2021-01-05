@@ -7,9 +7,11 @@ import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
 import me.bed0.jWynn.api.APIMidpoint;
 import me.bed0.jWynn.api.APIRequest;
+import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v1.APIResponseV1;
 import me.bed0.jWynn.api.v1.APIResponseV1Request;
 import me.bed0.jWynn.api.v1.territory.WynncraftTerritory;
+import reactor.core.publisher.Mono;
 
 import java.lang.reflect.Type;
 
@@ -22,8 +24,8 @@ public class APIV1TerritoryList extends APIRequest<WynncraftTerritory[]> {
     }
 
     @Override
-    public APIResponseV1<WynncraftTerritory[]> runIncludeMeta() {
-        return GSON.fromJson(getResponse(), new TypeToken<APIResponseV1<WynncraftTerritory[]>>() {}.getType());
+    public Mono<APIResponse<WynncraftTerritory[]>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s, new TypeToken<APIResponseV1<WynncraftTerritory[]>>() {}.getType()));
     }
 
     public static class APIV1TerritoryResponseDeserializer implements JsonDeserializer<APIResponseV1<WynncraftTerritory[]>> {

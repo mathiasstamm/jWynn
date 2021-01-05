@@ -5,6 +5,7 @@ import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.common.WynncraftIdentification;
 import me.bed0.jWynn.api.v2.ingredient.WynncraftIngredient;
 import me.bed0.jWynn.exceptions.APIRequestException;
+import reactor.core.publisher.Mono;
 
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nullable;
@@ -29,7 +30,7 @@ public class APIV2IngredientIdentificationRequest extends APIV2IngredientRequest
     }
 
     @Override
-    public APIResponse<WynncraftIngredient[]> runIncludeMeta() {
+    public Mono<APIResponse<WynncraftIngredient[]>> runIncludeMeta() {
         if (!updateMade)
             throw new APIRequestException("API V2 Ingredient Identification Search: No identifications added to search");
         requestURL = requestURL.substring(0, requestURL.length() - 1);

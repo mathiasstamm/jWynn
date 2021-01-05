@@ -11,6 +11,7 @@ import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v1.APIResponseV1;
 import me.bed0.jWynn.api.v1.APIResponseV1Request;
 import me.bed0.jWynn.api.v1.guild.WynncraftGuild;
+import reactor.core.publisher.Mono;
 
 import java.lang.reflect.Type;
 
@@ -23,8 +24,8 @@ public class APIV1GuildStats extends APIRequest<WynncraftGuild> {
     }
 
     @Override
-    public APIResponse<WynncraftGuild> runIncludeMeta() {
-        return GSON.fromJson(getResponse(), new TypeToken<APIResponseV1<WynncraftGuild>>() {}.getType());
+    public Mono<APIResponse<WynncraftGuild>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s, new TypeToken<APIResponseV1<WynncraftGuild>>() {}.getType()));
     }
 
     public static class APIV1GuildStatsResponseDeserializer implements JsonDeserializer<APIResponseV1<WynncraftGuild>> {

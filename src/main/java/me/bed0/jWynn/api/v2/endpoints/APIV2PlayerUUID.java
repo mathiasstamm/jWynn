@@ -6,6 +6,7 @@ import me.bed0.jWynn.api.APIRequest;
 import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v2.APIResponseV2;
 import me.bed0.jWynn.api.v2.player.WynncraftPlayerUUID;
+import reactor.core.publisher.Mono;
 
 import static me.bed0.jWynn.WynncraftAPI.GSON;
 
@@ -16,7 +17,7 @@ public class APIV2PlayerUUID extends APIRequest<WynncraftPlayerUUID[]> {
     }
 
     @Override
-    public APIResponse<WynncraftPlayerUUID[]> runIncludeMeta() {
-        return GSON.fromJson(getResponse(), new TypeToken<APIResponseV2<WynncraftPlayerUUID[]>>() {}.getType());
+    public Mono<APIResponse<WynncraftPlayerUUID[]>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s,  new TypeToken<APIResponseV2<WynncraftPlayerUUID[]>>() {}.getType()));
     }
 }

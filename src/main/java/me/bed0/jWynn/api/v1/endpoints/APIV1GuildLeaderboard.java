@@ -6,6 +6,7 @@ import me.bed0.jWynn.api.APIRequest;
 import me.bed0.jWynn.api.APIResponse;
 import me.bed0.jWynn.api.v1.APIResponseV1;
 import me.bed0.jWynn.api.v1.leaderboard.GuildLeaderboardPos;
+import reactor.core.publisher.Mono;
 
 import static me.bed0.jWynn.WynncraftAPI.GSON;
 
@@ -16,7 +17,7 @@ public class APIV1GuildLeaderboard extends APIRequest<GuildLeaderboardPos[]> {
     }
 
     @Override
-    public APIResponse<GuildLeaderboardPos[]> runIncludeMeta() {
-        return GSON.fromJson(getResponse(), new TypeToken<APIResponseV1<GuildLeaderboardPos[]>>() {}.getType());
+    public Mono<APIResponse<GuildLeaderboardPos[]>> runIncludeMeta() {
+        return getResponse().map(s -> GSON.fromJson(s, new TypeToken<APIResponseV1<GuildLeaderboardPos[]>>() {}.getType()));
     }
 }
